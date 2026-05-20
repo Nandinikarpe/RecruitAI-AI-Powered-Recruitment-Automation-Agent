@@ -71,14 +71,13 @@ with tab_upload:
                 if len(resume_text.strip()) < 50:
                     st.error("Could not extract enough text from resume.")
                 else:
-                    analysis = gemini_service.analyze_resume(resume_text, job_role)
+                    analysis, questions = gemini_service.process_resume(
+                        resume_text, job_role, question_count
+                    )
                     if not analysis.email:
                         guessed = guess_email(resume_text)
                         if guessed:
                             analysis.email = guessed
-                    questions = gemini_service.generate_interview_questions(
-                        resume_text, analysis, job_role, question_count
-                    )
                     st.session_state.analysis = analysis.model_dump()
                     st.session_state.questions = [q.model_dump() for q in questions]
                     st.session_state.resume_text = resume_text

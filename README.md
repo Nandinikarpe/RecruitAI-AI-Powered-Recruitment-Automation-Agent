@@ -5,7 +5,7 @@ AI-powered hiring assistant — **Streamlit only** (no separate backend). Analyz
 | Layer | Tech |
 |-------|------|
 | UI | Streamlit |
-| AI | Gemini API (`gemini-2.0-flash`) |
+| AI | Gemini API (`gemini-1.5-flash` — free tier friendly) |
 | Email | SMTP (Gmail App Password recommended) |
 
 ## Features
@@ -82,9 +82,9 @@ recruitment-agent/
 
 ## Free tier notes (Gemini)
 
-- Use `gemini-2.0-flash` or `gemini-1.5-flash` for lower cost/rate limits
-- Keep resumes under ~12k characters for reliable responses
-- If you hit quota errors, wait a minute and retry
+- Default model is `gemini-1.5-flash` (best free-tier quota). Avoid `gemini-2.0-flash` on free tier — it often shows limit 0.
+- The app uses **one API call** per resume (analysis + questions together) to save quota.
+- If you hit 429 errors, wait ~1 minute and retry, or set `GEMINI_MODEL=gemini-2.0-flash-lite` in `.env` / Streamlit Secrets.
 
 ## License
 
