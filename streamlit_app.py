@@ -223,24 +223,8 @@ with tab_chat:
     else:
         st.caption("General HR assistant — analyze a resume in tab 1 for candidate-specific answers.")
 
-    suggestions = [
-        "Is this candidate a good fit for the role?",
-        "Give me 3 more technical interview questions.",
-        "What red flags should I watch for?",
-        "Draft a short rejection email.",
-    ]
-    s_cols = st.columns(4)
-    for col, tip in zip(s_cols, suggestions):
-        if col.button(tip, use_container_width=True):
-            st.session_state.chat_messages.append({"role": "user", "content": tip})
-            st.rerun()
-
-    for msg in st.session_state.chat_messages:
-        with st.chat_message(msg["role"]):
-            st.markdown(msg["content"])
-
-    if prompt := st.chat_input("Ask about the candidate, interview, or hiring..."):
-        st.session_state.chat_messages.append({"role": "user", "content": prompt})
+    def _send_chat(user_text: str) -> None:
+        st.session_state.chat_messages.append({"role": "user", "content": user_text})
         try:
             reply = gemini_service.chat(
                 st.session_state.chat_messages,
@@ -258,4 +242,25 @@ with tab_chat:
             st.session_state.chat_messages.append(
                 {"role": "assistant", "content": f"Sorry, something went wrong: {e}"}
             )
+
+    suggestions = [
+        "Is this candidate a good fit for the role?",
+        "Give me 3 more technical interview questions.",
+        "What red flags should I watch for?",
+        "Draft a short rejection email.",
+    ]
+    s_cols = st.columns(4)
+    for col, tip in zip(s_cols, suggestions):
+        if col.button(tip, use_container_width=True):
+            with st.spinner("Thinking…"):
+                _send_chat(tip)
+            st.rerun()
+
+    for msg in st.session_state.chat_messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    if prompt := st.chat_input("Ask about the candidate, interview, or hiring..."):
+        with st.spinner("Thinking…"):
+            _send_chat(prompt)
         st.rerun()
