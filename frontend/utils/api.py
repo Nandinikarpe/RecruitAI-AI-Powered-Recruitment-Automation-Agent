@@ -1,7 +1,7 @@
 import requests
 import streamlit as st
 
-BASE_URL = "http://localhost:8000"
+from frontend.utils.backend_url import get_backend_url
 
 
 def get_headers():
@@ -11,7 +11,7 @@ def get_headers():
 
 def api_get(path: str, params: dict = None):
     try:
-        r = requests.get(f"{BASE_URL}{path}", headers=get_headers(), params=params, timeout=30)
+        r = requests.get(f"{get_backend_url()}{path}", headers=get_headers(), params=params, timeout=30)
         r.raise_for_status()
         return r.json()
     except requests.exceptions.HTTPError as e:
@@ -25,7 +25,7 @@ def api_get(path: str, params: dict = None):
 def api_post(path: str, json: dict = None, data: dict = None, files=None):
     try:
         r = requests.post(
-            f"{BASE_URL}{path}",
+            f"{get_backend_url()}{path}",
             headers=get_headers() if not files else {k: v for k, v in get_headers().items()},
             json=json,
             data=data,
@@ -44,7 +44,7 @@ def api_post(path: str, json: dict = None, data: dict = None, files=None):
 
 def api_patch(path: str, json: dict = None, params: dict = None):
     try:
-        r = requests.patch(f"{BASE_URL}{path}", headers=get_headers(), json=json, params=params, timeout=30)
+        r = requests.patch(f"{get_backend_url()}{path}", headers=get_headers(), json=json, params=params, timeout=30)
         r.raise_for_status()
         return r.json()
     except requests.exceptions.HTTPError as e:
@@ -57,7 +57,7 @@ def api_patch(path: str, json: dict = None, params: dict = None):
 
 def api_delete(path: str):
     try:
-        r = requests.delete(f"{BASE_URL}{path}", headers=get_headers(), timeout=30)
+        r = requests.delete(f"{get_backend_url()}{path}", headers=get_headers(), timeout=30)
         r.raise_for_status()
         return r.json()
     except Exception as e:

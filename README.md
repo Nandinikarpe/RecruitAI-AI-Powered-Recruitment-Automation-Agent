@@ -78,7 +78,20 @@ Community Cloud may run **Python 3.14**. Older stacks pulled **protobuf 4.x**, w
 
 - Set the app **entrypoint** to `frontend/app.py`.
 - If you still see odd protobuf errors, open **App settings → Advanced** and set **Python version** to **3.12** (Community Cloud default in docs), then redeploy if required.
-- The Streamlit UI calls the FastAPI backend at **`http://localhost:8000`** (`frontend/utils/api.py` and `frontend/utils/auth.py`). On Cloud, host the API separately (e.g. Railway, Render) and change `BASE_URL` / deploy secrets to that public URL.
+
+**Backend URL (required for login/register on Cloud):** the Streamlit app only serves the UI. It calls the FastAPI API using `get_backend_url()` from `frontend/utils/backend_url.py`. Configure **one** of:
+
+1. **Streamlit secrets** (dashboard → your app → Secrets), TOML format:
+
+   ```toml
+   BACKEND_URL = "https://your-api.example.com"
+   ```
+
+2. **Environment variable** `BACKEND_URL` (or `API_URL`) if your host injects env vars.
+
+Locally, **`BACKEND_URL`** in `.env` is picked up via `python-dotenv` when you run Streamlit from the project folder (default `http://localhost:8000` if unset).
+
+Deploy the FastAPI app separately (Railway, Render, Fly.io, etc.), enable HTTPS, and point **`BACKEND_URL`** at that origin (no trailing slash). Ensure CORS on the API allows your `*.streamlit.app` origin (this repo already uses `allow_origins=["*"]`).
 
 ## Project Structure
 
@@ -118,7 +131,8 @@ recruitment-agent/
 │   │   └── emails_page.py
 │   └── utils/
 │       ├── api.py
-│       └── auth.py
+│       ├── auth.py
+│       └── backend_url.py
 ├── supabase_schema.sql
 ├── requirements.txt
 └── .env.example

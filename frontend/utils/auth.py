@@ -3,7 +3,7 @@ import json
 import requests
 import streamlit as st
 
-BASE_URL = "http://localhost:8000"
+from frontend.utils.backend_url import get_backend_url
 
 
 def _http_error_message(r: requests.Response) -> str:
@@ -31,8 +31,9 @@ def _http_error_message(r: requests.Response) -> str:
 
 
 def login(email: str, password: str) -> bool:
+    base = get_backend_url()
     try:
-        r = requests.post(f"{BASE_URL}/auth/login", json={"email": email, "password": password}, timeout=15)
+        r = requests.post(f"{base}/auth/login", json={"email": email, "password": password}, timeout=15)
         if r.status_code == 200:
             data = r.json()
             st.session_state["token"] = data["access_token"]
@@ -41,7 +42,10 @@ def login(email: str, password: str) -> bool:
         st.error(_http_error_message(r))
         return False
     except requests.exceptions.RequestException as e:
-        st.error(f"Login failed: cannot reach API at {BASE_URL} ({e}). Is the backend running?")
+        st.error(
+            f"Login failed: cannot reach API at {base} ({e}). "
+            "Deploy the FastAPI app and set BACKEND_URL (env or Streamlit secrets) to its public URL."
+        )
         return False
     except Exception as e:
         st.error(f"Login failed: {e}")
@@ -49,9 +53,10 @@ def login(email: str, password: str) -> bool:
 
 
 def register(email: str, password: str, full_name: str) -> bool:
+    base = get_backend_url()
     try:
         r = requests.post(
-            f"{BASE_URL}/auth/register",
+            f"{base}/auth/register",
             json={"email": email, "password": password, "full_name": full_name},
             timeout=15,
         )
@@ -61,7 +66,10 @@ def register(email: str, password: str, full_name: str) -> bool:
         st.error(_http_error_message(r))
         return False
     except requests.exceptions.RequestException as e:
-        st.error(f"Registration failed: cannot reach API at {BASE_URL} ({e}). Is the backend running?")
+        st.error(
+            f"Registration failed: cannot reach API at {base} ({e}). "
+            "Deploy the FastAPI app and set BACKEND_URL (env or Streamlit secrets) to its public URL."
+        )
         return False
     except Exception as e:
         st.error(f"Registration failed: {e}")
