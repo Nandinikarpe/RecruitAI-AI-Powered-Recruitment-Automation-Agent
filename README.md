@@ -1,10 +1,9 @@
 # Recruitment Agent
 
-AI-powered hiring assistant: analyze resumes with **Google Gemini** (free tier), generate tailored interview questions, schedule interviews, and email the candidate plus HR.
+AI-powered hiring assistant — **Streamlit only** (no separate backend). Analyze resumes with **Google Gemini** (free tier), generate interview questions, schedule interviews, and email the candidate plus HR.
 
 | Layer | Tech |
 |-------|------|
-| API | FastAPI |
 | UI | Streamlit |
 | AI | Gemini API (`gemini-2.0-flash`) |
 | Email | SMTP (Gmail App Password recommended) |
@@ -38,19 +37,13 @@ Edit `.env`:
 - `SMTP_USER` / `SMTP_PASSWORD` — Gmail + [App Password](https://myaccount.google.com/apppasswords)
 - `HR_EMAIL` — where interview questions are sent
 
-### 3. Run the API (terminal 1)
-
-```bash
-uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
-```
-
-Docs: http://127.0.0.1:8000/docs
-
-### 4. Run Streamlit (terminal 2)
+### 3. Run the app
 
 ```bash
 streamlit run streamlit_app.py
 ```
+
+Or double-click `run.bat` on Windows.
 
 Open http://localhost:8501
 
@@ -60,25 +53,22 @@ Open http://localhost:8501
 2. **Tab 3** — Review/download HR interview questions  
 3. **Tab 2** — Set date/time → Send emails to candidate and HR  
 
-## API endpoints
+## Streamlit Cloud
 
-| Method | Path | Description |
-|--------|------|-------------|
-| GET | `/health` | Health check |
-| POST | `/api/resume/analyze` | Upload resume → analysis + questions |
-| GET | `/api/session/latest` | Last processed session |
-| POST | `/api/interview/schedule` | Email candidate + HR (after analyze) |
+Add secrets in the app settings (same keys as `.env`):
+
+- `GEMINI_API_KEY`
+- `SMTP_USER`, `SMTP_PASSWORD`, `HR_EMAIL` (optional)
 
 ## Email without SMTP
 
-Analysis and questions still work in the UI. Scheduling returns a warning if SMTP is not configured.
+Analysis and questions still work in the UI. Scheduling shows a warning if SMTP is not configured.
 
 ## Project structure
 
 ```
 recruitment-agent/
 ├── app/
-│   ├── main.py              # FastAPI
 │   ├── config.py
 │   ├── models/schemas.py
 │   └── services/

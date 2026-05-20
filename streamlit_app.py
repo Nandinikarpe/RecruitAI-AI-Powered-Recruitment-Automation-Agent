@@ -1,14 +1,17 @@
+import json
 import os
 from datetime import datetime, timedelta
 from pathlib import Path
 
-import requests
 import streamlit as st
 from dotenv import load_dotenv
 
-load_dotenv(Path(__file__).resolve().parent / ".env")
+from app.config import get_settings
+from app.models.schemas import InterviewQuestion, ResumeAnalysis
+from app.services import email_service, gemini_service
+from app.services.resume_parser import guess_email, parse_resume
 
-API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8001")
+load_dotenv(Path(__file__).resolve().parent / ".env")
 
 st.set_page_config(
     page_title="Recruitment Agent",
@@ -25,27 +28,26 @@ st.caption(
 if "analysis" not in st.session_state:
     st.session_state.analysis = None
     st.session_state.questions = None
+    st.session_state.resume_text = None
     st.session_state.job_role = "Software Engineer"
+
+settings = get_settings()
 
 with st.sidebar:
     st.header("Settings")
-    api_url = st.text_input("API URL", value=API_BASE)
     job_role = st.text_input("Job role", value=st.session_state.job_role)
     question_count = st.slider("Number of questions", 5, 20, 10)
     st.divider()
-    st.markdown("**API status**")
-    try:
-        r = requests.get(f"{api_url}/health", timeout=3)
-        if r.ok and r.json().get("service") == "recruitment-agent":
-            st.success("API online")
-        elif r.ok:
-            st.warning("Port in use by another app — use port 8001 or stop the other server")
-        else:
-            st.error("API error")
-    except requests.RequestException:
-        st.error("API offline")
-        st.code("run_api.bat", language="text")
-        st.caption("Start the API in a separate terminal, then refresh this page.")
+    st.markdown("**Gemini API**")
+    if settings.gemini_api_key:
+        st.success("API key loaded")
+    else:
+        st.error("Set GEMINI_API_KEY in `.env`")
+    st.markdown("**Email (SMTP)**")
+    if settings.smtp_user and settings.hr_email:
+        st.success("SMTP configured")
+    else:
+        st.caption("Optional: set SMTP_USER, SMTP_PASSWORD, HR_EMAIL in `.env`")
 
 tab_upload, tab_schedule, tab_questions = st.tabs(
     ["1. Resume & Analysis", "2. Schedule Interview", "3. HR Questions"]
@@ -60,26 +62,29 @@ with tab_upload:
 
     if st.button("Analyze resume & generate questions", type="primary", disabled=not uploaded):
         with st.spinner("Gemini is analyzing the resume..."):
-            files = {"file": (uploaded.name, uploaded.getvalue(), uploaded.type)}
-            data = {"job_role": job_role, "question_count": question_count}
             try:
-                resp = requests.post(
-                    f"{api_url}/api/resume/analyze",
-                    files=files,
-                    data=data,
-                    timeout=120,
-                )
-                resp.raise_for_status()
-                result = resp.json()
-                st.session_state.analysis = result["analysis"]
-                st.session_state.questions = result["questions"]
-                st.session_state.job_role = job_role
-                st.success("Resume analyzed successfully!")
-            except requests.HTTPError as e:
-                detail = e.response.text if e.response is not None else str(e)
-                st.error(f"API error: {detail}")
-            except requests.RequestException as e:
-                st.error(f"Could not reach API: {e}")
+                content = uploaded.getvalue()
+                resume_text = parse_resume(content, uploaded.name)
+                if len(resume_text.strip()) < 50:
+                    st.error("Could not extract enough text from resume.")
+                else:
+                    analysis = gemini_service.analyze_resume(resume_text, job_role)
+                    if not analysis.email:
+                        guessed = guess_email(resume_text)
+                        if guessed:
+                            analysis.email = guessed
+                    questions = gemini_service.generate_interview_questions(
+                        resume_text, analysis, job_role, question_count
+                    )
+                    st.session_state.analysis = analysis.model_dump()
+                    st.session_state.questions = [q.model_dump() for q in questions]
+                    st.session_state.resume_text = resume_text
+                    st.session_state.job_role = job_role
+                    st.success("Resume analyzed successfully!")
+            except ValueError as e:
+                st.error(str(e))
+            except Exception as e:
+                st.error(f"Processing failed: {e}")
 
     if st.session_state.analysis:
         a = st.session_state.analysis
@@ -143,34 +148,45 @@ with tab_schedule:
                 st.error("Candidate email is required.")
             else:
                 dt = datetime.combine(interview_date, interview_time)
-                payload = {
-                    "candidate_email": candidate_email,
-                    "candidate_name": candidate_name,
-                    "interview_datetime": dt.isoformat(),
-                    "interview_mode": interview_mode,
-                    "meeting_link": meeting_link or None,
-                    "job_role": st.session_state.job_role,
-                    "notes": notes or None,
-                }
+                analysis = ResumeAnalysis(**st.session_state.analysis)
+                questions = [
+                    InterviewQuestion(**q) for q in st.session_state.questions
+                ]
+                role = st.session_state.job_role
+
                 with st.spinner("Sending emails..."):
-                    try:
-                        resp = requests.post(
-                            f"{api_url}/api/interview/schedule",
-                            json=payload,
-                            timeout=30,
-                        )
-                        resp.raise_for_status()
-                        out = resp.json()
-                        if out.get("candidate_notified"):
-                            st.success(f"Interview invite sent to {candidate_email}")
-                        if out.get("hr_notified"):
-                            st.success("HR received interview questions by email")
-                        if not out.get("success"):
-                            st.warning(out.get("message", "Partial failure"))
-                    except requests.HTTPError as e:
-                        st.error(e.response.text if e.response else str(e))
-                    except requests.RequestException as e:
-                        st.error(str(e))
+                    candidate_ok = email_service.send_candidate_interview_email(
+                        candidate_email=candidate_email,
+                        candidate_name=candidate_name,
+                        interview_datetime=dt,
+                        interview_mode=interview_mode,
+                        job_role=role,
+                        meeting_link=meeting_link or None,
+                        notes=notes or None,
+                    )
+                    hr_ok = email_service.send_hr_interview_pack(
+                        analysis=analysis,
+                        questions=questions,
+                        candidate_name=candidate_name,
+                        candidate_email=candidate_email,
+                        interview_datetime=dt,
+                        job_role=role,
+                        interview_mode=interview_mode,
+                        meeting_link=meeting_link or None,
+                    )
+
+                if candidate_ok:
+                    st.success(f"Interview invite sent to {candidate_email}")
+                if hr_ok:
+                    st.success("HR received interview questions by email")
+                if not candidate_ok and not hr_ok:
+                    st.warning(
+                        "Emails not sent. Configure SMTP_USER, SMTP_PASSWORD, and HR_EMAIL in `.env`."
+                    )
+                elif not candidate_ok:
+                    st.warning("Candidate email failed — check SMTP settings.")
+                elif not hr_ok:
+                    st.warning("HR email failed — check HR_EMAIL in `.env`.")
 
 with tab_questions:
     st.subheader("Interview questions for HR")
@@ -179,7 +195,7 @@ with tab_questions:
     else:
         st.download_button(
             "Download questions (JSON)",
-            data=str(st.session_state.questions),
+            data=json.dumps(st.session_state.questions, indent=2),
             file_name="interview_questions.json",
             mime="application/json",
         )
