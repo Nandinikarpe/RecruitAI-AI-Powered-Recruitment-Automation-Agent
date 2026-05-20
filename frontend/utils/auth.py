@@ -134,9 +134,15 @@ def _login_direct_supabase(email: str, password: str) -> bool:
             st.error("Invalid credentials")
             return False
         user = result.data[0]
-        if not _pwd.verify(normalize_password_for_bcrypt(password), user["password_hash"]):
-            st.error("Invalid credentials")
-            return False
+        digest_ok = _pwd.verify(normalize_password_for_bcrypt(password), user["password_hash"])
+        if not digest_ok:
+            try:
+                legacy_ok = _pwd.verify(password, user["password_hash"])
+            except (ValueError, TypeError):
+                legacy_ok = False
+            if not legacy_ok:
+                st.error("Invalid credentials")
+                return False
         st.session_state["token"] = _create_session_token(user["email"])
         st.session_state["logged_in"] = True
         return True

@@ -1,19 +1,14 @@
-"""Bcrypt only accepts the first 72 bytes of a password; passlib raises if the input is longer."""
+"""Bcrypt only accepts the first 72 bytes; passlib raises on longer secrets. We pre-hash so any UTF-8 password works."""
+
+import hashlib
 
 
 def normalize_password_for_bcrypt(password: str) -> str:
     """
-    Return a string whose UTF-8 encoding is at most 72 bytes, without splitting a multibyte character.
+    Map the password to a fixed-length ASCII string (64 chars) so bcrypt never sees >72 bytes.
+
+    New accounts use this before hashing. verify_password also tries legacy raw-password hashes.
     """
     if not password:
         return password
-    data = password.encode("utf-8")
-    if len(data) <= 72:
-        return password
-    data = data[:72]
-    while data:
-        try:
-            return data.decode("utf-8")
-        except UnicodeDecodeError:
-            data = data[:-1]
-    return ""
+    return hashlib.sha256(password.encode("utf-8")).hexdigest()

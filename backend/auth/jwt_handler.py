@@ -18,7 +18,13 @@ def hash_password(password: str) -> str:
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(normalize_password_for_bcrypt(plain), hashed)
+    if pwd_context.verify(normalize_password_for_bcrypt(plain), hashed):
+        return True
+    # Legacy: hashes created before SHA256 pre-hash (bcrypt of raw password)
+    try:
+        return pwd_context.verify(plain, hashed)
+    except Exception:
+        return False
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:
