@@ -33,6 +33,7 @@ if "analysis" not in st.session_state:
     st.session_state.questions = None
     st.session_state.resume_text = None
     st.session_state.job_role = "Software Engineer"
+    st.session_state.chat_messages = []
 
 settings = get_settings()
 
@@ -53,9 +54,13 @@ with st.sidebar:
         st.success("SMTP configured")
     else:
         st.caption("Optional: set SMTP_USER, SMTP_PASSWORD, HR_EMAIL in `.env`")
+    st.divider()
+    if st.button("Clear chat history"):
+        st.session_state.chat_messages = []
+        st.rerun()
 
-tab_upload, tab_schedule, tab_questions = st.tabs(
-    ["1. Resume & Analysis", "2. Schedule Interview", "3. HR Questions"]
+tab_upload, tab_schedule, tab_questions, tab_chat = st.tabs(
+    ["1. Resume & Analysis", "2. Schedule Interview", "3. HR Questions", "4. AI Chat"]
 )
 
 with tab_upload:
@@ -84,7 +89,8 @@ with tab_upload:
                     st.session_state.questions = [q.model_dump() for q in questions]
                     st.session_state.resume_text = resume_text
                     st.session_state.job_role = job_role
-                    st.success("Resume analyzed successfully!")
+                    st.session_state.chat_messages = []
+                    st.success("Resume analyzed successfully! Open **AI Chat** to discuss this candidate.")
             except ValueError as e:
                 st.error(str(e))
             except Exception as e:
@@ -208,3 +214,48 @@ with tab_questions:
                 st.write(q.get("question", ""))
                 if q.get("rationale"):
                     st.caption(f"Why: {q['rationale']}")
+
+with tab_chat:
+    st.subheader("Recruitment AI Chat")
+    if st.session_state.analysis:
+        name = st.session_state.analysis.get("candidate_name", "Candidate")
+        st.caption(f"Chatting with context for **{name}** · role: **{st.session_state.job_role}**")
+    else:
+        st.caption("General HR assistant — analyze a resume in tab 1 for candidate-specific answers.")
+
+    suggestions = [
+        "Is this candidate a good fit for the role?",
+        "Give me 3 more technical interview questions.",
+        "What red flags should I watch for?",
+        "Draft a short rejection email.",
+    ]
+    s_cols = st.columns(4)
+    for col, tip in zip(s_cols, suggestions):
+        if col.button(tip, use_container_width=True):
+            st.session_state.chat_messages.append({"role": "user", "content": tip})
+            st.rerun()
+
+    for msg in st.session_state.chat_messages:
+        with st.chat_message(msg["role"]):
+            st.markdown(msg["content"])
+
+    if prompt := st.chat_input("Ask about the candidate, interview, or hiring..."):
+        st.session_state.chat_messages.append({"role": "user", "content": prompt})
+        try:
+            reply = gemini_service.chat(
+                st.session_state.chat_messages,
+                job_role=st.session_state.job_role,
+                analysis=st.session_state.analysis,
+                questions=st.session_state.questions,
+                resume_text=st.session_state.resume_text,
+            )
+            st.session_state.chat_messages.append({"role": "assistant", "content": reply})
+        except ValueError as e:
+            st.session_state.chat_messages.append(
+                {"role": "assistant", "content": f"⚠️ {e}"}
+            )
+        except Exception as e:
+            st.session_state.chat_messages.append(
+                {"role": "assistant", "content": f"Sorry, something went wrong: {e}"}
+            )
+        st.rerun()

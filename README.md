@@ -13,6 +13,7 @@ AI-powered hiring assistant — **Streamlit only** (no separate backend). Analyz
 1. **Resume analysis** — skills, experience, strengths, gaps (PDF/DOCX/TXT)
 2. **Interview questions** — 5–20 questions tailored to the resume and role
 3. **Schedule & notify** — candidate gets interview invite; HR gets full question pack
+4. **AI Chat** — interactive assistant about the candidate, interviews, and hiring
 
 ## Quick start
 
@@ -50,8 +51,9 @@ Open http://localhost:8501
 ## Workflow
 
 1. **Tab 1** — Upload resume → Analyze → view profile & summary  
-2. **Tab 3** — Review/download HR interview questions  
-3. **Tab 2** — Set date/time → Send emails to candidate and HR  
+2. **Tab 4** — Chat with AI about fit, questions, and interview strategy  
+3. **Tab 3** — Review/download HR interview questions  
+4. **Tab 2** — Set date/time → Send emails to candidate and HR  
 
 ## Streamlit Cloud
 
