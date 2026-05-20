@@ -1,0 +1,24 @@
+fastapi==0.111.0
+uvicorn==0.29.0
+# 1.35 pins numpy<2 which often lacks wheels on Python 3.14; newer Streamlit pulls numpy 2.x wheels.
+streamlit>=1.45.0,<2
+python-multipart==0.0.9
+python-jose[cryptography]==3.3.0
+passlib[bcrypt]==1.7.4
+supabase==2.4.6
+google-generativeai==0.5.4
+python-docx==1.1.2
+PyPDF2==3.0.1
+# pydantic-core wheels for Python 3.14 start in newer pydantic releases.
+pydantic>=2.10.0,<3
+pydantic-settings>=2.6.0,<3
+httpx==0.27.0
+python-dotenv>=1.0.1
+# Use a recent 2.2.x+ release so pip can install a wheel on your Python version (3.14+ may fail on older pins).
+pandas>=2.2.2,<3
+plotly==5.22.0
+Pillow>=11.0.0,<13
+schedule==1.2.2
+email-validator==2.1.1
+requests==2.31.0
+aiofiles==23.2.1

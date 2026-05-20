@@ -1,0 +1,109 @@
+# 🤖 RecruitAI — AI-Powered Recruitment Automation Agent
+
+Built with **FastAPI**, **Streamlit**, **Google Gemini**, and **Supabase**.
+
+This repository is a **Python** app (not Next.js). Supabase is used from the backend via the official [`supabase`](https://github.com/supabase/supabase-py) client. You do **not** need `npm install @supabase/supabase-js` unless you add a separate Next.js frontend.
+
+**Python version:** Use **3.11 or 3.12** if you hit build errors installing `pandas` on very new Python releases.
+
+## Features
+
+- 📄 Resume parsing (PDF & DOCX) with automatic info extraction
+- 🤖 AI-powered candidate analysis & scoring via Gemini (default **gemini-1.5-flash**, configurable for free tier)
+- 📊 HR dashboard with real-time analytics and charts
+- 💼 Job posting management
+- 👥 Candidate ranking and status tracking
+- 📅 Interview scheduling
+- 📧 Automated emails (invite / rejection / selection) via Gmail SMTP
+- 🔐 JWT authentication
+
+## Quick Start
+
+### 1. Install dependencies
+```bash
+pip install -r requirements.txt
+```
+
+### 2. Configure environment
+```bash
+cp .env.example .env
+# Fill in your credentials in .env
+```
+
+Environment variables are read by `backend/config.py`. You can use either the Python names (`SUPABASE_URL`, `SUPABASE_KEY`, …) or the same names you use in Next.js (`NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY`, …). Optional: `GEMINI_MODEL` (default `gemini-1.5-flash`). If `SUPABASE_SERVICE_KEY` is empty, the app uses your publishable/anon key for all DB access (works when RLS is not enabled, as in the bundled schema).
+
+**Secrets:** Never commit `.env`. If a key was pasted into a chat or ticket, rotate it in the Google AI Studio and Supabase dashboards.
+
+### 3. Set up Supabase
+- Create a project at [supabase.com](https://supabase.com)
+- Run `supabase_schema.sql` in the SQL Editor
+- Copy your project URL and keys to `.env` (publishable/anon key as `SUPABASE_KEY`; add `SUPABASE_SERVICE_KEY` when you enable RLS or need admin-only operations)
+
+### 4. Configure Gmail SMTP
+- Enable 2FA on your Google account
+- Generate an App Password at myaccount.google.com/apppasswords
+- Add to `.env` as `GMAIL_APP_PASSWORD`
+
+### 5. Get Gemini API Key
+- Visit [aistudio.google.com](https://aistudio.google.com)
+- Create an API key and add to `.env`
+
+### 6. Run the backend
+```bash
+cd recruitment-agent
+uvicorn backend.main:app --reload --port 8000
+```
+
+### 7. Run the frontend (new terminal)
+```bash
+cd recruitment-agent
+streamlit run frontend/app.py
+```
+
+- Backend API: http://localhost:8000
+- API Docs: http://localhost:8000/docs
+- Frontend: http://localhost:8501
+
+## Project Structure
+
+```
+recruitment-agent/
+├── backend/
+│   ├── main.py              # FastAPI app entry point
+│   ├── config.py            # Settings via pydantic-settings
+│   ├── auth/
+│   │   └── jwt_handler.py   # JWT auth utilities
+│   ├── models/
+│   │   └── schemas.py       # Pydantic models
+│   ├── routers/
+│   │   ├── auth.py          # Register / Login
+│   │   ├── jobs.py          # Job CRUD
+│   │   ├── candidates.py    # Resume upload + candidate management
+│   │   ├── ai.py            # Gemini analysis, questions, ranking
+│   │   ├── interviews.py    # Interview scheduling
+│   │   ├── emails.py        # Email automation
+│   │   └── analytics.py     # Dashboard stats
+│   └── services/
+│       ├── supabase_client.py
+│       ├── resume_parser.py
+│       ├── gemini_service.py
+│       └── email_service.py
+├── frontend/
+│   ├── app.py               # Streamlit entry point
+│   ├── components/
+│   │   └── sidebar.py
+│   ├── pages/
+│   │   ├── login_page.py
+│   │   ├── dashboard_page.py
+│   │   ├── jobs_page.py
+│   │   ├── candidates_page.py
+│   │   ├── ai_page.py
+│   │   ├── interviews_page.py
+│   │   └── emails_page.py
+│   └── utils/
+│       ├── api.py
+│       └── auth.py
+├── supabase_schema.sql
+├── requirements.txt
+└── .env.example
+```
