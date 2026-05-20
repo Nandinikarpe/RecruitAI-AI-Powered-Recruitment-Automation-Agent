@@ -4,6 +4,7 @@ from jose import JWTError, jwt
 from passlib.context import CryptContext
 from fastapi import Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer
+from backend.auth.password_utils import normalize_password_for_bcrypt
 from backend.config import get_settings
 from backend.models.schemas import TokenData
 
@@ -13,11 +14,11 @@ oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/auth/login")
 
 
 def hash_password(password: str) -> str:
-    return pwd_context.hash(password)
+    return pwd_context.hash(normalize_password_for_bcrypt(password))
 
 
 def verify_password(plain: str, hashed: str) -> bool:
-    return pwd_context.verify(plain, hashed)
+    return pwd_context.verify(normalize_password_for_bcrypt(plain), hashed)
 
 
 def create_access_token(data: dict, expires_delta: Optional[timedelta] = None) -> str:

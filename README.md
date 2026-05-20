@@ -85,10 +85,13 @@ If the API is **not** reachable (typical on Cloud when `BACKEND_URL` is still `l
 
 ```toml
 SUPABASE_URL = "https://YOUR_REF.supabase.co"
-SUPABASE_KEY = "your-anon-or-publishable-key"
+# Use the legacy anon JWT (starts with eyJ...) from Project Settings → API — not sb_publishable_... (Python client).
+SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...."
+# Or set anon separately (Streamlit prefers this if you also store a publishable key elsewhere):
+# SUPABASE_ANON_KEY = "eyJ..."
 SECRET_KEY = "same-long-random-string-you-use-for-the-api-if-any"
-# Optional: if inserts to `users` are denied, add the service_role key (server-side only):
-# SUPABASE_SERVICE_KEY = "..."
+# Optional: service_role JWT for inserts if RLS blocks anon (server-side only):
+# SUPABASE_SERVICE_KEY = "eyJ..."
 ```
 
 Run **`supabase_schema.sql`** in the Supabase SQL Editor first (including the RLS-disable section at the bottom) so the `users` table exists.
@@ -143,7 +146,8 @@ recruitment-agent/
 │       ├── api.py
 │       ├── auth.py
 │       ├── backend_url.py
-│       └── secrets_bootstrap.py
+│       ├── secrets_bootstrap.py
+│       └── supabase_env.py
 ├── supabase_schema.sql
 ├── requirements.txt
 └── .env.example
