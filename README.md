@@ -81,28 +81,28 @@ Community Cloud may run **Python 3.14**. Older stacks pulled **protobuf 4.x**, w
 
 #### Login & register without hosting FastAPI
 
-If the API is **not** reachable (typical on Cloud when `BACKEND_URL` is still `localhost`), the app uses **Supabase directly** for sign-up and sign-in: same `users` table and bcrypt passwords as the FastAPI backend. Add these **Secrets** (TOML) in the Streamlit dashboard (or the same keys in `.env` locally):
+If the API is **not** reachable (typical on Cloud), the app uses **Supabase directly** for sign-up and sign-in.
+
+**Streamlit Cloud:** open [share.streamlit.io](https://share.streamlit.io) → your app → **Settings** (⚙) → **Secrets**. Paste this TOML (replace with your values), click **Save**, then **Reboot app**:
 
 ```toml
 SUPABASE_URL = "https://YOUR_REF.supabase.co"
-# Use the legacy anon JWT (starts with eyJ...) from Project Settings → API — not sb_publishable_... (Python client).
-SUPABASE_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...."
-# Or set anon separately (Streamlit prefers this if you also store a publishable key elsewhere):
-# SUPABASE_ANON_KEY = "eyJ..."
-SECRET_KEY = "same-long-random-string-you-use-for-the-api-if-any"
-# Optional: service_role JWT for inserts if RLS blocks anon (server-side only):
-# SUPABASE_SERVICE_KEY = "eyJ..."
+SUPABASE_KEY = "eyJ...anon JWT from Supabase → Project Settings → API..."
+SECRET_KEY = "long-random-string-for-jwt-sessions"
 ```
 
-Nested secrets also work (flattened automatically):
+See `.streamlit/secrets.toml.example` in the repo. **Do not** rely on `.env` on Cloud — it is not deployed. Secrets must be set in the Streamlit dashboard.
+
+Nested secrets also work:
 
 ```toml
 [supabase]
 url = "https://YOUR_REF.supabase.co"
 key = "eyJ..."
+SECRET_KEY = "..."
 ```
 
-**DNS / “Name or service not known”:** `SUPABASE_URL` is wrong, still a placeholder, or has a typo. Copy **Project URL** exactly from Supabase → **Project Settings → API** (must look like `https://abcdefgh.supabase.co`, no trailing path).
+**DNS / “Name or service not known”:** `SUPABASE_URL` is wrong or has a typo. Copy **Project URL** exactly from Supabase → **Project Settings → API** (`https://xxxx.supabase.co`).
 
 Run **`supabase_schema.sql`** in the Supabase SQL Editor first (including the RLS-disable section at the bottom) so the `users` table exists.
 

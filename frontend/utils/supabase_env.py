@@ -1,26 +1,9 @@
-"""Supabase URL/key from environment (Streamlit secrets or .env). Shared by frontend direct auth."""
+"""Supabase URL/key from config (.env, env, Streamlit Cloud secrets)."""
 
-import os
 import socket
-from typing import Optional
 from urllib.parse import urlparse
 
-
-def _clean(value: Optional[str]) -> str:
-    if not value:
-        return ""
-    s = str(value).strip()
-    if len(s) >= 2 and s[0] == s[-1] and s[0] in ("'", '"'):
-        s = s[1:-1].strip()
-    return s
-
-
-def _first_env(*keys: str) -> str:
-    for k in keys:
-        v = _clean(os.environ.get(k))
-        if v:
-            return v
-    return ""
+from frontend.utils.config_loader import get_config, list_config_keys
 
 
 def normalize_supabase_url(raw: str) -> str:
@@ -28,12 +11,18 @@ def normalize_supabase_url(raw: str) -> str:
     Return https://REF.supabase.co (no trailing slash).
     Raises RuntimeError with actionable text when the value is missing or invalid.
     """
-    u = _clean(raw)
+    u = raw.strip()
     if not u:
+        found = [k for k in list_config_keys() if "SUPABASE" in k or "SECRET" in k]
+        hint = f" Loaded secret/env keys: {', '.join(found) or '(none)'}."
         raise RuntimeError(
-            "SUPABASE_URL is not set. In Streamlit Cloud → Secrets, add:\n"
+            "SUPABASE_URL is not set. In Streamlit Cloud open your app → "
+            "**Settings → Secrets** and paste (TOML format):\n\n"
             'SUPABASE_URL = "https://YOUR_REF.supabase.co"\n'
-            "(Copy Project URL from Supabase → Project Settings → API.)"
+            'SUPABASE_KEY = "eyJ...anon JWT from Supabase API page..."\n'
+            'SECRET_KEY = "long-random-string"\n\n'
+            "Save secrets, then **Reboot** the app."
+            + hint
         )
     lower = u.lower()
     if "your_" in lower or lower in ("localhost", "example.com"):
@@ -66,24 +55,22 @@ def normalize_supabase_url(raw: str) -> str:
 
 
 def get_supabase_project_url() -> str:
-    raw = _first_env("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL", "SUPABASE_PROJECT_URL")
+    raw = get_config(
+        "SUPABASE_URL",
+        "NEXT_PUBLIC_SUPABASE_URL",
+        "SUPABASE_PROJECT_URL",
+    )
     return normalize_supabase_url(raw)
 
 
 def get_supabase_auth_key() -> str:
-    """
-    Key for create_client(). Order:
-    1. Service role (bypasses RLS)
-    2. Legacy anon JWT (eyJ...)
-    3. SUPABASE_KEY only if it looks like a JWT
-    """
     for k in ("SUPABASE_SERVICE_KEY", "SUPABASE_SECRET_KEY"):
-        v = _clean(os.environ.get(k))
+        v = get_config(k)
         if v:
             return v
 
-    anon = _first_env("SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY")
-    generic = _first_env("SUPABASE_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY")
+    anon = get_config("SUPABASE_ANON_KEY", "NEXT_PUBLIC_SUPABASE_ANON_KEY")
+    generic = get_config("SUPABASE_KEY", "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY", "SUPABASE_ANON_KEY")
 
     if anon:
         return anon
