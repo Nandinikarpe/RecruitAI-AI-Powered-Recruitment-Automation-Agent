@@ -8,9 +8,20 @@ from google.api_core import exceptions as google_exceptions
 from app.config import get_settings
 from app.models.schemas import InterviewQuestion, ResumeAnalysis
 
-# Free-tier friendly models (gemini-2.0-flash often has 0 quota on free tier)
-DEFAULT_MODEL = "gemini-1.5-flash"
-FALLBACK_MODELS = ("gemini-1.5-flash", "gemini-2.0-flash-lite", "gemini-2.5-flash")
+# Fast + free-tier friendly (lite/8b models respond quicker than full flash)
+DEFAULT_MODEL = "gemini-2.0-flash-lite"
+FALLBACK_MODELS = (
+    "gemini-2.0-flash-lite",
+    "gemini-1.5-flash-8b",
+    "gemini-1.5-flash",
+)
+
+RESUME_MAX_CHARS = 5000
+GENERATION_CONFIG = genai.GenerationConfig(
+    temperature=0.2,
+    max_output_tokens=2048,
+    top_p=0.85,
+)
 
 
 def _models_to_try() -> list[str]:
@@ -33,7 +44,10 @@ def _configure_gemini(model_name: str) -> genai.GenerativeModel:
             "(https://aistudio.google.com/apikey)."
         )
     genai.configure(api_key=settings.gemini_api_key)
-    return genai.GenerativeModel(model_name)
+    return genai.GenerativeModel(
+        model_name,
+        generation_config=GENERATION_CONFIG,
+    )
 
 
 def _extract_json(text: str) -> dict:
@@ -52,10 +66,10 @@ def _retry_seconds(err: Exception) -> float:
     msg = str(err)
     m = re.search(r"retry in (\d+(?:\.\d+)?)s", msg, re.I)
     if m:
-        return min(float(m.group(1)) + 2, 90)
+        return min(float(m.group(1)) + 2, 60)
     if "429" in msg or "quota" in msg.lower():
-        return 45
-    return 5
+        return 30
+    return 3
 
 
 def _is_quota_error(err: Exception) -> bool:
@@ -71,7 +85,10 @@ def _generate(prompt: str) -> str:
         model = _configure_gemini(model_name)
         for attempt in range(2):
             try:
-                response = model.generate_content(prompt)
+                response = model.generate_content(
+                    prompt,
+                    request_options={"timeout": 90},
+                )
                 return response.text
             except Exception as e:
                 last_err = e
@@ -80,7 +97,7 @@ def _generate(prompt: str) -> str:
                     continue
                 break
     raise ValueError(
-        "Gemini API quota exceeded. Wait a few minutes and try again, or use "
+        "Gemini API quota exceeded. Wait a minute and retry, or set "
         f"GEMINI_MODEL={DEFAULT_MODEL} in .env / Streamlit Secrets. "
         f"Details: {last_err}"
     ) from last_err
@@ -89,42 +106,24 @@ def _generate(prompt: str) -> str:
 def process_resume(
     resume_text: str,
     job_role: str = "General",
-    question_count: int = 10,
+    question_count: int = 8,
 ) -> tuple[ResumeAnalysis, list[InterviewQuestion]]:
-    """Single API call: analysis + interview questions (saves free-tier quota)."""
-    prompt = f"""You are an expert recruiter and interviewer for role: {job_role}.
+    """Single fast API call: concise analysis + interview questions."""
+    excerpt = resume_text[:RESUME_MAX_CHARS]
+    prompt = f"""Recruiter for "{job_role}". Be concise. JSON only, no markdown.
 
-Analyze the resume and generate {question_count} tailored interview questions in ONE response.
+Tasks: parse resume, output analysis + exactly {question_count} short interview questions.
 
-Return ONLY valid JSON:
-{{
-  "analysis": {{
-    "candidate_name": "string",
-    "email": "string or null",
-    "phone": "string or null",
-    "skills": ["skill1"],
-    "experience_years": number or null,
-    "education": ["degree"],
-    "summary": "2-3 sentences",
-    "strengths": ["strength1"],
-    "gaps": ["gap1"]
-  }},
-  "questions": [
-    {{
-      "category": "Technical|Behavioral|Situational|Role-specific",
-      "question": "question text",
-      "rationale": "why ask this"
-    }}
-  ]
-}}
+JSON schema:
+{{"analysis":{{"candidate_name":"","email":null,"phone":null,"skills":[],"experience_years":null,"education":[],"summary":"one sentence","strengths":[],"gaps":[]}},"questions":[{{"category":"Technical|Behavioral|Situational","question":"","rationale":"max 8 words"}}]}}
 
 RESUME:
-{resume_text[:10000]}
+{excerpt}
 """
     data = _extract_json(_generate(prompt))
     analysis = ResumeAnalysis(**data["analysis"])
     questions = [InterviewQuestion(**q) for q in data.get("questions", [])]
-    return analysis, questions
+    return analysis, questions[:question_count]
 
 
 def analyze_resume(resume_text: str, job_role: str = "General") -> ResumeAnalysis:
@@ -136,7 +135,7 @@ def generate_interview_questions(
     resume_text: str,
     analysis: ResumeAnalysis,
     job_role: str = "General",
-    count: int = 10,
+    count: int = 8,
 ) -> list[InterviewQuestion]:
     _, questions = process_resume(resume_text, job_role, question_count=count)
     return questions[:count]

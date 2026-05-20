@@ -39,9 +39,11 @@ settings = get_settings()
 with st.sidebar:
     st.header("Settings")
     job_role = st.text_input("Job role", value=st.session_state.job_role)
-    question_count = st.slider("Number of questions", 5, 20, 10)
+    question_count = st.slider("Number of questions", 5, 15, 8)
+    st.caption("Fewer questions = faster response")
     st.divider()
     st.markdown("**Gemini API**")
+    st.caption(f"Model: `{settings.gemini_model}`")
     if settings.gemini_api_key:
         st.success("API key loaded")
     else:
@@ -64,7 +66,7 @@ with tab_upload:
     )
 
     if st.button("Analyze resume & generate questions", type="primary", disabled=not uploaded):
-        with st.spinner("Gemini is analyzing the resume..."):
+        with st.spinner("Generating analysis (fast model)…"):
             try:
                 content = uploaded.getvalue()
                 resume_text = parse_resume(content, uploaded.name)
