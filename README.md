@@ -72,6 +72,14 @@ streamlit run frontend/app.py
 - API Docs: http://localhost:8000/docs
 - Frontend: http://localhost:8501
 
+### Streamlit Community Cloud
+
+Community Cloud may run **Python 3.14**. Older stacks pulled **protobuf 4.x**, which crashes on import (`Metaclasses with custom tp_new are not supported`) before your app loads. This repo pins **`google-generativeai==0.8.6`** and **`protobuf>=5.29,<6`** so Streamlit starts on 3.14.
+
+- Set the app **entrypoint** to `frontend/app.py`.
+- If you still see odd protobuf errors, open **App settings → Advanced** and set **Python version** to **3.12** (Community Cloud default in docs), then redeploy if required.
+- The Streamlit UI calls the FastAPI backend at **`http://localhost:8000`** (`frontend/utils/api.py` and `frontend/utils/auth.py`). On Cloud, host the API separately (e.g. Railway, Render) and change `BASE_URL` / deploy secrets to that public URL.
+
 ## Project Structure
 
 ```
