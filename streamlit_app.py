@@ -1,10 +1,14 @@
 import os
 from datetime import datetime, timedelta
+from pathlib import Path
 
 import requests
 import streamlit as st
+from dotenv import load_dotenv
 
-API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8000")
+load_dotenv(Path(__file__).resolve().parent / ".env")
+
+API_BASE = os.getenv("API_BASE_URL", "http://127.0.0.1:8001")
 
 st.set_page_config(
     page_title="Recruitment Agent",
@@ -32,12 +36,16 @@ with st.sidebar:
     st.markdown("**API status**")
     try:
         r = requests.get(f"{api_url}/health", timeout=3)
-        if r.ok:
+        if r.ok and r.json().get("service") == "recruitment-agent":
             st.success("API online")
+        elif r.ok:
+            st.warning("Port in use by another app — use port 8001 or stop the other server")
         else:
             st.error("API error")
     except requests.RequestException:
-        st.error("API offline — start FastAPI first")
+        st.error("API offline")
+        st.code("run_api.bat", language="text")
+        st.caption("Start the API in a separate terminal, then refresh this page.")
 
 tab_upload, tab_schedule, tab_questions = st.tabs(
     ["1. Resume & Analysis", "2. Schedule Interview", "3. HR Questions"]

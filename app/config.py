@@ -16,7 +16,7 @@ class Settings(BaseSettings):
     hr_email: str = ""
     company_name: str = "Recruitment Team"
 
-    api_base_url: str = "http://127.0.0.1:8000"
+    api_base_url: str = "http://127.0.0.1:8001"
 
     class Config:
         env_file = ".env"
