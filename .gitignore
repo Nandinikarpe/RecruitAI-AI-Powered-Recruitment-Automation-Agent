@@ -1,11 +1,6 @@
 .env
-.env.local
-data/
-.streamlit/secrets.toml
-.snapshots/
-.venv/
 venv/
 __pycache__/
-*.py[cod]
+*.pyc
 .pytest_cache/
-.streamlit/secrets.toml
+.streamlit/

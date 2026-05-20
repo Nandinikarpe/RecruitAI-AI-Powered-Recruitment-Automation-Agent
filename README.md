@@ -1,101 +1,101 @@
-# 🤖 RecruitAI — AI-Powered Recruitment Automation Agent
+# Recruitment Agent
 
-Built with **FastAPI**, **Streamlit**, and **Google Gemini**. **No external database** — data is stored in local JSON files under `data/`.
+AI-powered hiring assistant: analyze resumes with **Google Gemini** (free tier), generate tailored interview questions, schedule interviews, and email the candidate plus HR.
 
-**Python version:** Use **3.11 or 3.12** if you hit build errors installing `pandas` on very new Python releases.
+| Layer | Tech |
+|-------|------|
+| API | FastAPI |
+| UI | Streamlit |
+| AI | Gemini API (`gemini-2.0-flash`) |
+| Email | SMTP (Gmail App Password recommended) |
 
 ## Features
 
-- 📄 Resume parsing (PDF & DOCX) with automatic info extraction
-- 🤖 AI-powered candidate analysis & scoring via Gemini (default **gemini-1.5-flash**)
-- 📊 HR dashboard with analytics and charts
-- 💼 Job posting management
-- 👥 Candidate ranking and status tracking
-- 📅 Interview scheduling
-- 📧 Automated emails via Gmail SMTP (optional)
-- 🔐 JWT authentication
+1. **Resume analysis** — skills, experience, strengths, gaps (PDF/DOCX/TXT)
+2. **Interview questions** — 5–20 questions tailored to the resume and role
+3. **Schedule & notify** — candidate gets interview invite; HR gets full question pack
 
-## Quick Start
+## Quick start
 
 ### 1. Install dependencies
+
 ```bash
+cd recruitment-agent
+python -m venv venv
+venv\Scripts\activate
 pip install -r requirements.txt
 ```
 
 ### 2. Configure environment
+
 ```bash
-cp .env.example .env
-# Fill in GEMINI_API_KEY and SECRET_KEY at minimum
+copy .env.example .env
 ```
 
-Required:
-- `GEMINI_API_KEY` — from [aistudio.google.com](https://aistudio.google.com)
-- `SECRET_KEY` — long random string for login sessions
+Edit `.env`:
 
-Optional:
-- `GMAIL_USER` / `GMAIL_APP_PASSWORD` — for email features
-- `DATA_DIR` — where JSON data is saved (default: `data/`)
+- `GEMINI_API_KEY` — [Google AI Studio](https://aistudio.google.com/apikey) (free)
+- `SMTP_USER` / `SMTP_PASSWORD` — Gmail + [App Password](https://myaccount.google.com/apppasswords)
+- `HR_EMAIL` — where interview questions are sent
 
-### 3. Run the backend
+### 3. Run the API (terminal 1)
+
 ```bash
-uvicorn backend.main:app --reload --port 8000
+uvicorn app.main:app --reload --host 127.0.0.1 --port 8000
 ```
 
-Health check: http://localhost:8000/health/store
+Docs: http://127.0.0.1:8000/docs
 
-### 4. Run the frontend (new terminal)
+### 4. Run Streamlit (terminal 2)
+
 ```bash
-streamlit run frontend/app.py
+streamlit run streamlit_app.py
 ```
 
-- Backend API: http://localhost:8000
-- API Docs: http://localhost:8000/docs
-- Frontend: http://localhost:8501
+Open http://localhost:8501
 
-## Storage (no database)
+## Workflow
 
-All data lives in **`data/store.json`** (users, jobs, candidates, interviews, etc.). Uploaded resumes are saved under **`data/resumes/`**.
+1. **Tab 1** — Upload resume → Analyze → view profile & summary  
+2. **Tab 3** — Review/download HR interview questions  
+3. **Tab 2** — Set date/time → Send emails to candidate and HR  
 
-- No Supabase, PostgreSQL, or other external DB required
-- On **Streamlit Cloud**, the filesystem is ephemeral — data may reset when the app redeploys unless you host the API on a server with persistent disk
+## API endpoints
 
-## Streamlit Community Cloud
+| Method | Path | Description |
+|--------|------|-------------|
+| GET | `/health` | Health check |
+| POST | `/api/resume/analyze` | Upload resume → analysis + questions |
+| GET | `/api/session/latest` | Last processed session |
+| POST | `/api/interview/schedule` | Email candidate + HR (after analyze) |
 
-Set **entrypoint** to `frontend/app.py`.
+## Email without SMTP
 
-**Secrets** (Settings → Secrets):
+Analysis and questions still work in the UI. Scheduling returns a warning if SMTP is not configured.
 
-```toml
-SECRET_KEY = "long-random-string"
-GEMINI_API_KEY = "your-gemini-key"
-```
-
-Login/register works **without** a separate API — accounts are saved to `data/store.json` on the Cloud machine.
-
-For jobs, candidates, AI, etc., either:
-- Run the **FastAPI backend** locally and set `BACKEND_URL`, or
-- Deploy the API (Railway, Render, etc.) and set `BACKEND_URL` in Streamlit secrets
-
-Optional: `AUTH_VIA_API=false` forces local JSON auth; `true` forces API auth.
-
-## Project Structure
+## Project structure
 
 ```
 recruitment-agent/
-├── backend/
-│   ├── main.py
+├── app/
+│   ├── main.py              # FastAPI
 │   ├── config.py
-│   ├── store/
-│   │   └── json_store.py    # Local JSON persistence
-│   ├── auth/
-│   ├── models/
-│   ├── routers/
+│   ├── models/schemas.py
 │   └── services/
-├── frontend/
-│   ├── app.py
-│   ├── pages/
-│   └── utils/
-├── data/                    # Created at runtime (gitignored)
+│       ├── gemini_service.py
+│       ├── resume_parser.py
+│       └── email_service.py
+├── streamlit_app.py
 ├── requirements.txt
 └── .env.example
 ```
+
+## Free tier notes (Gemini)
+
+- Use `gemini-2.0-flash` or `gemini-1.5-flash` for lower cost/rate limits
+- Keep resumes under ~12k characters for reliable responses
+- If you hit quota errors, wait a minute and retry
+
+## License
+
+MIT
