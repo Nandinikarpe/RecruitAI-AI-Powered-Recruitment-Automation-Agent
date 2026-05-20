@@ -62,10 +62,12 @@ with st.sidebar:
     else:
         st.error("Set GEMINI_API_KEY in `.env`")
     st.markdown("**Email (SMTP)**")
-    if settings.smtp_user and settings.hr_email:
+    if email_service.is_smtp_configured():
         st.success("SMTP configured")
     else:
-        st.caption("Optional: set SMTP_USER, SMTP_PASSWORD, HR_EMAIL in `.env`")
+        st.warning("Email not fully configured")
+        with st.expander("How to set up Gmail"):
+            st.markdown(email_service.smtp_setup_hint())
     st.divider()
     if st.button("Clear chat history"):
         st.session_state.chat_messages = []
@@ -136,6 +138,10 @@ with tab_upload:
 
 with tab_schedule:
     st.subheader("Schedule interview & send emails")
+    if not email_service.is_smtp_configured():
+        st.info("Emails are optional. Configure SMTP in Secrets to send invites.")
+        with st.expander("Gmail App Password setup"):
+            st.markdown(email_service.smtp_setup_hint())
     if not st.session_state.analysis:
         st.warning("Analyze a resume in tab 1 first.")
     else:
@@ -177,16 +183,18 @@ with tab_schedule:
                 role = st.session_state.job_role
 
                 with st.spinner("Sending emails..."):
-                    candidate_ok = email_service.send_candidate_interview_email(
-                        candidate_email=candidate_email,
-                        candidate_name=candidate_name,
-                        interview_datetime=dt,
-                        interview_mode=interview_mode,
-                        job_role=role,
-                        meeting_link=meeting_link or None,
-                        notes=notes or None,
+                    candidate_ok, candidate_err = (
+                        email_service.send_candidate_interview_email(
+                            candidate_email=candidate_email,
+                            candidate_name=candidate_name,
+                            interview_datetime=dt,
+                            interview_mode=interview_mode,
+                            job_role=role,
+                            meeting_link=meeting_link or None,
+                            notes=notes or None,
+                        )
                     )
-                    hr_ok = email_service.send_hr_interview_pack(
+                    hr_ok, hr_err = email_service.send_hr_interview_pack(
                         analysis=analysis,
                         questions=questions,
                         candidate_name=candidate_name,
@@ -199,16 +207,20 @@ with tab_schedule:
 
                 if candidate_ok:
                     st.success(f"Interview invite sent to {candidate_email}")
+                elif candidate_err:
+                    st.error(candidate_err)
+
                 if hr_ok:
                     st.success("HR received interview questions by email")
+                elif hr_err:
+                    st.error(hr_err)
+
                 if not candidate_ok and not hr_ok:
-                    st.warning(
-                        "Emails not sent. Configure SMTP_USER, SMTP_PASSWORD, and HR_EMAIL in `.env`."
+                    st.markdown(email_service.smtp_setup_hint())
+                elif candidate_ok or hr_ok:
+                    st.caption(
+                        "Interview details are in tab 3 (HR Questions) if email did not send."
                     )
-                elif not candidate_ok:
-                    st.warning("Candidate email failed — check SMTP settings.")
-                elif not hr_ok:
-                    st.warning("HR email failed — check HR_EMAIL in `.env`.")
 
 with tab_questions:
     st.subheader("Interview questions for HR")

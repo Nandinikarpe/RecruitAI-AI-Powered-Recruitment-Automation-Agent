@@ -8,22 +8,56 @@ from app.config import get_settings
 from app.models.schemas import InterviewQuestion, ResumeAnalysis
 
 
-def _send_email(to: str, subject: str, html_body: str) -> bool:
+def is_smtp_configured() -> bool:
+    settings = get_settings()
+    return bool(settings.smtp_user and settings.smtp_password and settings.hr_email)
+
+
+def smtp_setup_hint() -> str:
+    return (
+        "**Gmail setup:**\n"
+        "1. Turn on [2-Step Verification](https://myaccount.google.com/security)\n"
+        "2. Create an [App Password](https://myaccount.google.com/apppasswords) (16 characters)\n"
+        "3. In Streamlit Secrets or `.env` set:\n"
+        "   - `SMTP_USER` = your full Gmail address\n"
+        "   - `SMTP_PASSWORD` = the app password (no spaces)\n"
+        "   - `HR_EMAIL` = where HR receives the question pack\n\n"
+        "Do **not** use your normal Gmail password."
+    )
+
+
+def _send_email(to: str, subject: str, html_body: str) -> tuple[bool, Optional[str]]:
     settings = get_settings()
     if not settings.smtp_user or not settings.smtp_password:
-        return False
+        return False, "SMTP_USER and SMTP_PASSWORD are not set."
+
+    user = settings.smtp_user.strip()
+    password = settings.smtp_password.replace(" ", "").strip()
 
     msg = MIMEMultipart("alternative")
     msg["Subject"] = subject
-    msg["From"] = settings.smtp_user
+    msg["From"] = user
     msg["To"] = to
     msg.attach(MIMEText(html_body, "html"))
 
-    with smtplib.SMTP(settings.smtp_host, settings.smtp_port) as server:
-        server.starttls()
-        server.login(settings.smtp_user, settings.smtp_password)
-        server.sendmail(settings.smtp_user, [to], msg.as_string())
-    return True
+    try:
+        with smtplib.SMTP(settings.smtp_host, settings.smtp_port, timeout=30) as server:
+            server.starttls()
+            server.login(user, password)
+            server.sendmail(user, [to], msg.as_string())
+        return True, None
+    except smtplib.SMTPAuthenticationError:
+        return False, (
+            "SMTP authentication failed. For Gmail, use an **App Password** "
+            "(not your regular password). Create one at "
+            "https://myaccount.google.com/apppasswords after enabling 2-Step Verification."
+        )
+    except smtplib.SMTPException as e:
+        return False, f"SMTP error: {e}"
+    except OSError as e:
+        return False, f"Could not connect to mail server ({settings.smtp_host}): {e}"
+    except Exception as e:
+        return False, f"Email failed: {e}"
 
 
 def _format_questions_html(questions: list[InterviewQuestion]) -> str:
@@ -44,7 +78,7 @@ def send_candidate_interview_email(
     job_role: str,
     meeting_link: Optional[str] = None,
     notes: Optional[str] = None,
-) -> bool:
+) -> tuple[bool, Optional[str]]:
     settings = get_settings()
     dt_str = interview_datetime.strftime("%A, %B %d, %Y at %I:%M %p")
     link_block = (
@@ -83,10 +117,10 @@ def send_hr_interview_pack(
     job_role: str,
     interview_mode: str,
     meeting_link: Optional[str] = None,
-) -> bool:
+) -> tuple[bool, Optional[str]]:
     settings = get_settings()
     if not settings.hr_email:
-        return False
+        return False, "HR_EMAIL is not set."
 
     dt_str = interview_datetime.strftime("%A, %B %d, %Y at %I:%M %p")
     skills = ", ".join(analysis.skills[:15]) if analysis.skills else "N/A"
@@ -115,4 +149,4 @@ def send_hr_interview_pack(
     </body></html>
     """
     subject = f"[HR] Interview Questions — {candidate_name} | {job_role}"
-    return _send_email(settings.hr_email, subject, html)
+    return _send_email(settings.hr_email.strip(), subject, html)
