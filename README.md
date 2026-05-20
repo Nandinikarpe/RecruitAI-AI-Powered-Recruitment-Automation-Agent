@@ -77,21 +77,31 @@ streamlit run frontend/app.py
 Community Cloud may run **Python 3.14**. Older stacks pulled **protobuf 4.x**, which crashes on import (`Metaclasses with custom tp_new are not supported`) before your app loads. This repo pins **`google-generativeai==0.8.6`** and **`protobuf>=5.29,<6`** so Streamlit starts on 3.14.
 
 - Set the app **entrypoint** to `frontend/app.py`.
-- If you still see odd protobuf errors, open **App settings → Advanced** and set **Python version** to **3.12** (Community Cloud default in docs), then redeploy if required.
+- If you still see odd protobuf errors, open **App settings → Advanced** and set **Python version** to **3.12**, then redeploy if required.
 
-**Backend URL (required for login/register on Cloud):** the Streamlit app only serves the UI. It calls the FastAPI API using `get_backend_url()` from `frontend/utils/backend_url.py`. Configure **one** of:
+#### Login & register without hosting FastAPI
 
-1. **Streamlit secrets** (dashboard → your app → Secrets), TOML format:
+If the API is **not** reachable (typical on Cloud when `BACKEND_URL` is still `localhost`), the app uses **Supabase directly** for sign-up and sign-in: same `users` table and bcrypt passwords as the FastAPI backend. Add these **Secrets** (TOML) in the Streamlit dashboard (or the same keys in `.env` locally):
 
-   ```toml
-   BACKEND_URL = "https://your-api.example.com"
-   ```
+```toml
+SUPABASE_URL = "https://YOUR_REF.supabase.co"
+SUPABASE_KEY = "your-anon-or-publishable-key"
+SECRET_KEY = "same-long-random-string-you-use-for-the-api-if-any"
+# Optional: if inserts to `users` are denied, add the service_role key (server-side only):
+# SUPABASE_SERVICE_KEY = "..."
+```
 
-2. **Environment variable** `BACKEND_URL` (or `API_URL`) if your host injects env vars.
+Run **`supabase_schema.sql`** in the Supabase SQL Editor first (including the RLS-disable section at the bottom) so the `users` table exists.
 
-Locally, **`BACKEND_URL`** in `.env` is picked up via `python-dotenv` when you run Streamlit from the project folder (default `http://localhost:8000` if unset).
+#### Jobs, AI, uploads, etc.
 
-Deploy the FastAPI app separately (Railway, Render, Fly.io, etc.), enable HTTPS, and point **`BACKEND_URL`** at that origin (no trailing slash). Ensure CORS on the API allows your `*.streamlit.app` origin (this repo already uses `allow_origins=["*"]`).
+Those pages still call the **FastAPI** backend. Deploy the API somewhere public and set:
+
+```toml
+BACKEND_URL = "https://your-api.example.com"
+```
+
+Optional env **`AUTH_VIA_API`**: `true` / `yes` to always use the API for login (fails if it is down); `false` / `no` to always use direct Supabase for login. Default: **auto** (probe `GET /` with a 2s timeout).
 
 ## Project Structure
 
@@ -132,7 +142,8 @@ recruitment-agent/
 │   └── utils/
 │       ├── api.py
 │       ├── auth.py
-│       └── backend_url.py
+│       ├── backend_url.py
+│       └── secrets_bootstrap.py
 ├── supabase_schema.sql
 ├── requirements.txt
 └── .env.example

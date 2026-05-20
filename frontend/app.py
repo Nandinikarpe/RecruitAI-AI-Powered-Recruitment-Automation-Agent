@@ -5,6 +5,10 @@ import os
 # Ensure project root is on path
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
+from frontend.utils.secrets_bootstrap import apply_streamlit_secrets_to_environ
+
+apply_streamlit_secrets_to_environ()
+
 from frontend.utils.auth import is_logged_in
 from frontend.components.sidebar import render_sidebar
 from frontend.pages import (
