@@ -34,10 +34,18 @@ Environment variables are read by `backend/config.py`. You can use either the Py
 
 **Secrets:** Never commit `.env`. If a key was pasted into a chat or ticket, rotate it in the Google AI Studio and Supabase dashboards.
 
-### 3. Set up Supabase
-- Create a project at [supabase.com](https://supabase.com)
-- Run `supabase_schema.sql` in the SQL Editor
-- Copy your project URL and keys to `.env` (publishable/anon key as `SUPABASE_KEY`; add `SUPABASE_SERVICE_KEY` when you enable RLS or need admin-only operations)
+### 3. Set up Supabase (connect the database)
+
+1. Create a project at [supabase.com](https://supabase.com).
+2. Open **SQL Editor** → New query → paste the full contents of `supabase_schema.sql` → **Run**.  
+   This creates tables, the `resumes` storage bucket, indexes, and **turns off RLS** on those tables so the Python backend can read/write using `SUPABASE_KEY` alone.
+3. Open **Project Settings → API** and copy into `.env`:
+   - **Project URL** → `SUPABASE_URL` (form `https://YOUR_REF.supabase.co`, no trailing slash).
+   - **anon public** (legacy JWT starting with `eyJ...`) **or** publishable key → `SUPABASE_KEY`.  
+     If the Python client rejects a publishable key, use the **anon** JWT.
+   - Optional but recommended for locked-down projects: **service_role** secret → `SUPABASE_SERVICE_KEY` (never expose this in frontend code).
+4. Start the API, then verify the connection: **http://localhost:8000/health/supabase**  
+   You should see `"connected": true`. If `"connected": false`, read the `detail` and `hint` in the JSON response.
 
 ### 4. Configure Gmail SMTP
 - Enable 2FA on your Google account

@@ -90,3 +90,19 @@ CREATE INDEX IF NOT EXISTS idx_candidates_job_id ON candidates(job_id);
 CREATE INDEX IF NOT EXISTS idx_candidates_status ON candidates(status);
 CREATE INDEX IF NOT EXISTS idx_interviews_candidate_id ON interviews(candidate_id);
 CREATE INDEX IF NOT EXISTS idx_email_logs_candidate_id ON email_logs(candidate_id);
+
+-- ============================================================
+-- Row Level Security (RLS)
+-- New Supabase projects often enable RLS with no policies = all API access denied.
+-- This app calls Supabase from the FastAPI server with one key (anon/publishable or service_role).
+-- Disable RLS on these tables so reads/writes work with anon/publishable when SERVICE_KEY is empty.
+--
+-- Production hardening: keep RLS ON, add explicit policies, and set SUPABASE_SERVICE_KEY
+-- to the service_role key (server only — never expose to the browser).
+-- ============================================================
+ALTER TABLE users DISABLE ROW LEVEL SECURITY;
+ALTER TABLE jobs DISABLE ROW LEVEL SECURITY;
+ALTER TABLE candidates DISABLE ROW LEVEL SECURITY;
+ALTER TABLE interviews DISABLE ROW LEVEL SECURITY;
+ALTER TABLE interview_questions DISABLE ROW LEVEL SECURITY;
+ALTER TABLE email_logs DISABLE ROW LEVEL SECURITY;

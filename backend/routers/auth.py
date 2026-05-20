@@ -8,37 +8,53 @@ router = APIRouter(prefix="/auth", tags=["Auth"])
 
 @router.post("/register", response_model=UserOut)
 async def register(user: UserCreate):
-    db = get_supabase_admin()
-    existing = db.table("users").select("id").eq("email", user.email).execute()
-    if existing.data:
-        raise HTTPException(status_code=400, detail="Email already registered")
+    try:
+        db = get_supabase_admin()
+        existing = db.table("users").select("id").eq("email", user.email).execute()
+        if existing.data:
+            raise HTTPException(status_code=400, detail="Email already registered")
 
-    hashed = hash_password(user.password)
-    result = db.table("users").insert({
-        "email": user.email,
-        "password_hash": hashed,
-        "full_name": user.full_name,
-    }).execute()
+        hashed = hash_password(user.password)
+        result = db.table("users").insert({
+            "email": user.email,
+            "password_hash": hashed,
+            "full_name": user.full_name,
+        }).execute()
 
-    if not result.data:
-        raise HTTPException(status_code=500, detail="Registration failed")
-    return result.data[0]
+        if not result.data:
+            raise HTTPException(status_code=500, detail="Registration failed: database returned no row.")
+        return result.data[0]
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Database error (check Supabase URL/key and that `users` table exists): {e!s}",
+        ) from e
 
 
 @router.post("/login", response_model=Token)
 async def login(credentials: UserLogin):
-    db = get_supabase_admin()
-    result = db.table("users").select("*").eq("email", credentials.email).execute()
+    try:
+        db = get_supabase_admin()
+        result = db.table("users").select("*").eq("email", credentials.email).execute()
 
-    if not result.data:
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        if not result.data:
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    user = result.data[0]
-    if not verify_password(credentials.password, user["password_hash"]):
-        raise HTTPException(status_code=401, detail="Invalid credentials")
+        user = result.data[0]
+        if not verify_password(credentials.password, user["password_hash"]):
+            raise HTTPException(status_code=401, detail="Invalid credentials")
 
-    token = create_access_token({"sub": user["email"]})
-    return {"access_token": token, "token_type": "bearer"}
+        token = create_access_token({"sub": user["email"]})
+        return {"access_token": token, "token_type": "bearer"}
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(
+            status_code=503,
+            detail=f"Database error (check Supabase URL/key): {e!s}",
+        ) from e
 
 
 @router.get("/me", response_model=UserOut)
