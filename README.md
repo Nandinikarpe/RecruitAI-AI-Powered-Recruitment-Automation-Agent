@@ -94,6 +94,16 @@ SECRET_KEY = "same-long-random-string-you-use-for-the-api-if-any"
 # SUPABASE_SERVICE_KEY = "eyJ..."
 ```
 
+Nested secrets also work (flattened automatically):
+
+```toml
+[supabase]
+url = "https://YOUR_REF.supabase.co"
+key = "eyJ..."
+```
+
+**DNS / “Name or service not known”:** `SUPABASE_URL` is wrong, still a placeholder, or has a typo. Copy **Project URL** exactly from Supabase → **Project Settings → API** (must look like `https://abcdefgh.supabase.co`, no trailing path).
+
 Run **`supabase_schema.sql`** in the Supabase SQL Editor first (including the RLS-disable section at the bottom) so the `users` table exists.
 
 #### Jobs, AI, uploads, etc.

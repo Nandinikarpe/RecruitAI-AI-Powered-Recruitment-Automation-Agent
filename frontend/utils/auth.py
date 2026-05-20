@@ -9,7 +9,11 @@ from passlib.context import CryptContext
 from supabase import create_client
 
 from frontend.utils.backend_url import get_backend_url
-from frontend.utils.supabase_env import get_supabase_auth_key, get_supabase_project_url
+from frontend.utils.supabase_env import (
+    format_supabase_connection_error,
+    get_supabase_auth_key,
+    get_supabase_project_url,
+)
 from backend.auth.password_utils import normalize_password_for_bcrypt
 
 _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
@@ -58,15 +62,7 @@ def _api_reachable() -> bool:
 
 def _supabase_for_auth():
     url = get_supabase_project_url()
-    try:
-        key = get_supabase_auth_key()
-    except RuntimeError:
-        raise
-    if not url or not key:
-        raise RuntimeError(
-            "Missing SUPABASE_URL or a valid Supabase API key. Add them to Streamlit Secrets or .env. "
-            "Use the **anon** JWT (`eyJ...`) from Project Settings → API, not the `sb_publishable_` key, unless you use **service_role** as SUPABASE_SERVICE_KEY."
-        )
+    key = get_supabase_auth_key()
     return create_client(url, key)
 
 
@@ -150,14 +146,7 @@ def _login_direct_supabase(email: str, password: str) -> bool:
         st.error(str(e))
         return False
     except Exception as e:
-        msg = str(e)
-        if "Invalid API key" in msg or "JWT" in msg or "PGRST301" in msg:
-            st.error(
-                f"{msg} — Use Supabase **anon** JWT (`eyJ...`) or **service_role** JWT in secrets; "
-                "not the `sb_publishable_...` dashboard key for Python."
-            )
-        else:
-            st.error(f"Login failed (Supabase): {e}")
+        st.error(format_supabase_connection_error(e))
         return False
 
 
@@ -188,15 +177,7 @@ def _register_direct_supabase(email: str, password: str, full_name: str) -> bool
         st.error(str(e))
         return False
     except Exception as e:
-        msg = str(e)
-        if "Invalid API key" in msg or "JWT" in msg or "PGRST301" in msg:
-            st.error(
-                f"{msg} — Use Project Settings → API → **anon public** JWT (`eyJ...`) as SUPABASE_KEY or "
-                "SUPABASE_ANON_KEY, or **service_role** JWT as SUPABASE_SERVICE_KEY. "
-                "The `sb_publishable_...` key often does not work with the Python client."
-            )
-        else:
-            st.error(f"Registration failed (Supabase): {e}")
+        st.error(format_supabase_connection_error(e))
         return False
 
 

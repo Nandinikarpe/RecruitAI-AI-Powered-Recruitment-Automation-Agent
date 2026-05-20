@@ -1,6 +1,18 @@
-"""Load .env then Streamlit Cloud secrets into os.environ so auth can read Supabase + JWT keys."""
+"""Load .env then Streamlit Cloud secrets into os.environ (supports nested [supabase] sections)."""
 
 import os
+
+
+def _flatten_to_env(prefix: str, value, out: dict[str, str]) -> None:
+    if isinstance(value, dict):
+        for k, v in value.items():
+            part = str(k).strip().upper()
+            child_prefix = f"{prefix}_{part}" if prefix else part
+            _flatten_to_env(child_prefix, v, out)
+    elif isinstance(value, bool):
+        out[prefix] = "true" if value else "false"
+    elif isinstance(value, (str, int, float)):
+        out[prefix] = str(value).strip()
 
 
 def apply_streamlit_secrets_to_environ() -> None:
@@ -15,10 +27,10 @@ def apply_streamlit_secrets_to_environ() -> None:
     try:
         import streamlit as st
 
-        for k, v in dict(st.secrets).items():
-            if isinstance(v, (str, int, float)):
-                os.environ.setdefault(str(k), str(v))
-            elif isinstance(v, bool):
-                os.environ.setdefault(str(k), "true" if v else "false")
+        flat: dict[str, str] = {}
+        _flatten_to_env("", dict(st.secrets), flat)
+        for k, v in flat.items():
+            if v and k not in os.environ:
+                os.environ[k] = v
     except Exception:
         pass
