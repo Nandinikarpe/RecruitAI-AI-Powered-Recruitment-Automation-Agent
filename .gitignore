@@ -1,5 +1,6 @@
 .env
 .env.local
+data/
 .streamlit/secrets.toml
 .snapshots/
 .venv/

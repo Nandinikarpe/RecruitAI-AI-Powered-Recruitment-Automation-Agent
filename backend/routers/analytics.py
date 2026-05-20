@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends
 from backend.auth.jwt_handler import get_current_user
-from backend.services.supabase_client import get_supabase_admin
+from backend.store import get_store
 from collections import Counter
 
 router = APIRouter(prefix="/analytics", tags=["Analytics"])
@@ -8,25 +8,23 @@ router = APIRouter(prefix="/analytics", tags=["Analytics"])
 
 @router.get("/dashboard")
 async def dashboard_stats(current_user=Depends(get_current_user)):
-    db = get_supabase_admin()
-
-    candidates = db.table("candidates").select("status, ai_score, job_id, created_at").execute().data or []
-    jobs = db.table("jobs").select("id, title, is_active").execute().data or []
-    interviews = db.table("interviews").select("scheduled_at, status").execute().data or []
+    store = get_store()
+    candidates = store.list("candidates")
+    jobs = store.list("jobs")
+    interviews = store.list("interviews")
 
     total_candidates = len(candidates)
-    avg_score = round(sum(c["ai_score"] or 0 for c in candidates) / max(total_candidates, 1), 1)
-    status_counts = Counter(c["status"] for c in candidates)
+    avg_score = round(sum(c.get("ai_score") or 0 for c in candidates) / max(total_candidates, 1), 1)
+    status_counts = Counter(c.get("status") for c in candidates)
     score_distribution = {
-        "90-100": sum(1 for c in candidates if (c["ai_score"] or 0) >= 90),
-        "70-89": sum(1 for c in candidates if 70 <= (c["ai_score"] or 0) < 90),
-        "50-69": sum(1 for c in candidates if 50 <= (c["ai_score"] or 0) < 70),
-        "0-49": sum(1 for c in candidates if (c["ai_score"] or 0) < 50),
+        "90-100": sum(1 for c in candidates if (c.get("ai_score") or 0) >= 90),
+        "70-89": sum(1 for c in candidates if 70 <= (c.get("ai_score") or 0) < 90),
+        "50-69": sum(1 for c in candidates if 50 <= (c.get("ai_score") or 0) < 70),
+        "0-49": sum(1 for c in candidates if (c.get("ai_score") or 0) < 50),
     }
 
-    # Candidates per job
     job_map = {j["id"]: j["title"] for j in jobs}
-    per_job = Counter(c["job_id"] for c in candidates)
+    per_job = Counter(c.get("job_id") for c in candidates)
     candidates_per_job = [
         {"job": job_map.get(jid, jid), "count": cnt}
         for jid, cnt in per_job.most_common(10)

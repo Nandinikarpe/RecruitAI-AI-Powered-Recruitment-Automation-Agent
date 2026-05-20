@@ -13,31 +13,17 @@ class Settings(BaseSettings):
         extra="ignore",
     )
 
-    supabase_url: str = Field(
-        validation_alias=AliasChoices("SUPABASE_URL", "NEXT_PUBLIC_SUPABASE_URL"),
-    )
-    supabase_key: str = Field(
-        validation_alias=AliasChoices(
-            "SUPABASE_KEY",
-            "NEXT_PUBLIC_SUPABASE_PUBLISHABLE_KEY",
-            "NEXT_PUBLIC_SUPABASE_ANON_KEY",
-        ),
-    )
-    # Optional: if empty, admin routes use the same client as `supabase_key` (fine when RLS is off).
-    supabase_service_key: str = Field(
-        default="",
-        validation_alias=AliasChoices("SUPABASE_SERVICE_KEY", "SUPABASE_SECRET_KEY"),
-    )
-
     gemini_api_key: str = Field(validation_alias=AliasChoices("GEMINI_API_KEY", "GOOGLE_API_KEY"))
-    # Free-tier friendly default; override with e.g. `gemini-2.0-flash` if your SDK supports it.
     gemini_model: str = Field(default="gemini-1.5-flash", validation_alias=AliasChoices("GEMINI_MODEL"))
 
-    secret_key: str
+    secret_key: str = Field(default="change-me-in-production", validation_alias=AliasChoices("SECRET_KEY"))
     algorithm: str = "HS256"
     access_token_expire_minutes: int = 60
-    gmail_user: str
-    gmail_app_password: str
+
+    gmail_user: str = ""
+    gmail_app_password: str = ""
+
+    data_dir: str = Field(default="data", validation_alias=AliasChoices("DATA_DIR"))
     backend_url: str = "http://localhost:8000"
     frontend_url: str = "http://localhost:8501"
 

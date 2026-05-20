@@ -6,27 +6,20 @@ import requests
 import streamlit as st
 from jose import jwt
 from passlib.context import CryptContext
-from supabase import create_client
 
-from frontend.utils.backend_url import get_backend_url
-from frontend.utils.supabase_env import (
-    format_supabase_connection_error,
-    get_supabase_auth_key,
-    get_supabase_project_url,
-)
 from backend.auth.password_utils import normalize_password_for_bcrypt
+from backend.store import get_store
+from frontend.utils.backend_url import get_backend_url
 
 _pwd = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
 
 def _http_error_message(r: requests.Response) -> str:
-    """FastAPI returns JSON with `detail`; HTML or empty bodies should not crash the UI."""
     try:
         data = r.json()
     except (json.JSONDecodeError, requests.exceptions.JSONDecodeError, ValueError):
         text = (r.text or "").strip()
         return text[:800] if text else f"Server returned HTTP {r.status_code} with no JSON body."
-
     detail = data.get("detail")
     if isinstance(detail, list):
         parts = []
@@ -44,7 +37,6 @@ def _http_error_message(r: requests.Response) -> str:
 
 
 def _api_reachable() -> bool:
-    """If the FastAPI app responds, use it for auth (same as local dev with uvicorn). Cached per session."""
     if os.environ.get("AUTH_VIA_API", "").strip().lower() in ("0", "false", "no"):
         return False
     if os.environ.get("AUTH_VIA_API", "").strip().lower() in ("1", "true", "yes"):
@@ -60,26 +52,23 @@ def _api_reachable() -> bool:
     return ok
 
 
-def _supabase_for_auth():
-    url = get_supabase_project_url()
-    key = get_supabase_auth_key()
-    return create_client(url, key)
+def _secret_key() -> str:
+    from frontend.utils.config_loader import get_config
+
+    key = get_config("SECRET_KEY")
+    if not key:
+        raise RuntimeError("SECRET_KEY is not set. Add it to Streamlit Secrets or .env.")
+    return key
 
 
 def _create_session_token(email: str) -> str:
-    secret = (os.environ.get("SECRET_KEY") or "").strip()
-    if not secret:
-        raise RuntimeError(
-            "Missing SECRET_KEY (needed for login sessions). Add it to Streamlit Secrets or .env — "
-            "use a long random string, same value as the FastAPI app if you use both."
-        )
     algo = os.environ.get("ALGORITHM", "HS256")
     try:
         mins = int(os.environ.get("ACCESS_TOKEN_EXPIRE_MINUTES", "60"))
     except ValueError:
         mins = 60
     expire = datetime.utcnow() + timedelta(minutes=mins)
-    return jwt.encode({"sub": email, "exp": expire}, secret, algorithm=algo)
+    return jwt.encode({"sub": email, "exp": expire}, _secret_key(), algorithm=algo)
 
 
 def _login_via_api(email: str, password: str) -> bool:
@@ -95,9 +84,6 @@ def _login_via_api(email: str, password: str) -> bool:
         return False
     except requests.exceptions.RequestException as e:
         st.error(f"Login failed: cannot reach API at {base} ({e}).")
-        return False
-    except Exception as e:
-        st.error(f"Login failed: {e}")
         return False
 
 
@@ -117,24 +103,20 @@ def _register_via_api(email: str, password: str, full_name: str) -> bool:
     except requests.exceptions.RequestException as e:
         st.error(f"Registration failed: cannot reach API at {base} ({e}).")
         return False
-    except Exception as e:
-        st.error(f"Registration failed: {e}")
-        return False
 
 
-def _login_direct_supabase(email: str, password: str) -> bool:
+def _login_local(email: str, password: str) -> bool:
     try:
-        db = _supabase_for_auth()
-        result = db.table("users").select("*").eq("email", email.strip()).execute()
-        if not result.data:
+        store = get_store()
+        user = store.find_user_by_email(email)
+        if not user:
             st.error("Invalid credentials")
             return False
-        user = result.data[0]
         digest_ok = _pwd.verify(normalize_password_for_bcrypt(password), user["password_hash"])
         if not digest_ok:
             try:
                 legacy_ok = _pwd.verify(password, user["password_hash"])
-            except (ValueError, TypeError):
+            except Exception:
                 legacy_ok = False
             if not legacy_ok:
                 st.error("Invalid credentials")
@@ -146,38 +128,28 @@ def _login_direct_supabase(email: str, password: str) -> bool:
         st.error(str(e))
         return False
     except Exception as e:
-        st.error(format_supabase_connection_error(e))
+        st.error(f"Login failed: {e}")
         return False
 
 
-def _register_direct_supabase(email: str, password: str, full_name: str) -> bool:
+def _register_local(email: str, password: str, full_name: str) -> bool:
     if not full_name or not full_name.strip():
         st.error("Full name is required")
         return False
     try:
-        db = _supabase_for_auth()
-        existing = db.table("users").select("id").eq("email", email.strip()).execute()
-        if existing.data:
+        store = get_store()
+        if store.find_user_by_email(email):
             st.error("Email already registered")
             return False
         hashed = _pwd.hash(normalize_password_for_bcrypt(password))
-        result = db.table("users").insert(
-            {
-                "email": email.strip(),
-                "password_hash": hashed,
-                "full_name": full_name.strip(),
-            }
-        ).execute()
-        if not result.data:
-            st.error("Registration failed: database returned no row. Check Supabase `users` table and keys.")
-            return False
+        store.insert_user(email, hashed, full_name)
         st.success("Account created! Please log in.")
         return True
     except RuntimeError as e:
         st.error(str(e))
         return False
     except Exception as e:
-        st.error(format_supabase_connection_error(e))
+        st.error(f"Registration failed: {e}")
         return False
 
 
@@ -187,7 +159,7 @@ def login(email: str, password: str) -> bool:
         return False
     if _api_reachable():
         return _login_via_api(email, password)
-    return _login_direct_supabase(email, password)
+    return _login_local(email, password)
 
 
 def register(email: str, password: str, full_name: str) -> bool:
@@ -196,7 +168,7 @@ def register(email: str, password: str, full_name: str) -> bool:
         return False
     if _api_reachable():
         return _register_via_api(email, password, full_name)
-    return _register_direct_supabase(email, password, full_name)
+    return _register_local(email, password, full_name)
 
 
 def logout():
