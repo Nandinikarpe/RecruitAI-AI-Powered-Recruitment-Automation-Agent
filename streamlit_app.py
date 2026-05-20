@@ -6,7 +6,7 @@ from pathlib import Path
 import streamlit as st
 from dotenv import load_dotenv
 
-from app.config import get_settings
+from app.config import _apply_streamlit_secrets, get_settings
 from app.models.schemas import InterviewQuestion, ResumeAnalysis
 from app.services import email_service, gemini_service
 from app.services.resume_parser import guess_email, parse_resume
@@ -18,6 +18,9 @@ st.set_page_config(
     page_icon="📋",
     layout="wide",
 )
+
+_apply_streamlit_secrets()
+get_settings.cache_clear()
 
 st.title("📋 Recruitment Agent")
 st.caption(

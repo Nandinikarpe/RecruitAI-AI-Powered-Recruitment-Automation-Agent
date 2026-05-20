@@ -1,7 +1,6 @@
-from datetime import datetime
 from typing import Optional
 
-from pydantic import BaseModel, EmailStr, Field
+from pydantic import BaseModel, Field
 
 
 class ResumeAnalysis(BaseModel):
@@ -20,26 +19,3 @@ class InterviewQuestion(BaseModel):
     category: str
     question: str
     rationale: Optional[str] = None
-
-
-class InterviewScheduleRequest(BaseModel):
-    candidate_email: EmailStr
-    candidate_name: str
-    interview_datetime: datetime
-    interview_mode: str = "Video Call"
-    meeting_link: Optional[str] = None
-    job_role: str = "Open Position"
-    notes: Optional[str] = None
-
-
-class ProcessResumeResponse(BaseModel):
-    analysis: ResumeAnalysis
-    questions: list[InterviewQuestion]
-    resume_text_preview: str = ""
-
-
-class ScheduleInterviewResponse(BaseModel):
-    success: bool
-    message: str
-    candidate_notified: bool
-    hr_notified: bool

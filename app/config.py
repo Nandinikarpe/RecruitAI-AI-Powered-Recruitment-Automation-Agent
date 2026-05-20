@@ -3,6 +3,28 @@ from functools import lru_cache
 
 from pydantic_settings import BaseSettings
 
+_SECRET_KEYS = (
+    "GEMINI_API_KEY",
+    "GEMINI_MODEL",
+    "SMTP_HOST",
+    "SMTP_PORT",
+    "SMTP_USER",
+    "SMTP_PASSWORD",
+    "HR_EMAIL",
+    "COMPANY_NAME",
+)
+
+
+def _apply_streamlit_secrets() -> None:
+    try:
+        import streamlit as st
+
+        for key in _SECRET_KEYS:
+            if key in st.secrets and not os.environ.get(key):
+                os.environ[key] = str(st.secrets[key])
+    except Exception:
+        pass
+
 
 class Settings(BaseSettings):
     gemini_api_key: str = ""
@@ -23,4 +45,5 @@ class Settings(BaseSettings):
 
 @lru_cache
 def get_settings() -> Settings:
+    _apply_streamlit_secrets()
     return Settings()
