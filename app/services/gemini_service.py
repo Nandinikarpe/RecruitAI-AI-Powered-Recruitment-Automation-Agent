@@ -208,8 +208,8 @@ def process_resume(
 
 Tasks: parse resume, output analysis + exactly {question_count} short interview questions.
 
-JSON schema:
-{{"analysis":{{"candidate_name":"","email":null,"phone":null,"skills":[],"experience_years":null,"education":[],"summary":"one sentence","strengths":[],"gaps":[]}},"questions":[{{"category":"Technical|Behavioral|Situational","question":"","rationale":"max 8 words"}}]}}
+JSON schema (education/skills/strengths/gaps must be arrays of strings, not objects):
+{{"analysis":{{"candidate_name":"","email":null,"phone":null,"skills":["skill1"],"experience_years":null,"education":["Degree, Year, Score"],"summary":"one sentence","strengths":["s1"],"gaps":["g1"]}},"questions":[{{"category":"Technical|Behavioral|Situational","question":"","rationale":"max 8 words"}}]}}
 
 RESUME:
 {excerpt}
