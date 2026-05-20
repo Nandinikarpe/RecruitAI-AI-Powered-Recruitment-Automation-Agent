@@ -44,7 +44,19 @@ with st.sidebar:
     st.caption("Fewer questions = faster response")
     st.divider()
     st.markdown("**Gemini API**")
-    st.caption(f"Model: `{settings.gemini_model}`")
+    try:
+        from app.services.gemini_service import get_active_model, list_generative_models
+
+        active = get_active_model()
+        if (settings.gemini_model or "").lower() in ("auto", "automatic", ""):
+            st.caption(f"Model: **{active}** (auto-detected)")
+        else:
+            st.caption(f"Model: `{settings.gemini_model}`")
+        with st.expander("Available generative models"):
+            for m in list_generative_models()[:15]:
+                st.text(m)
+    except Exception:
+        st.caption(f"Model: `{settings.gemini_model or 'auto'}`")
     if settings.gemini_api_key:
         st.success("API key loaded")
     else:

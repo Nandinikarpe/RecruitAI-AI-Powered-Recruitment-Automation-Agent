@@ -28,7 +28,7 @@ def _apply_streamlit_secrets() -> None:
 
 class Settings(BaseSettings):
     gemini_api_key: str = ""
-    gemini_model: str = "gemini-2.0-flash-lite"
+    gemini_model: str = "auto"  # auto-picks first working generative model
 
     smtp_host: str = "smtp.gmail.com"
     smtp_port: int = 587

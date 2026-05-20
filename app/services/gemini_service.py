@@ -8,12 +8,18 @@ from google.api_core import exceptions as google_exceptions
 from app.config import get_settings
 from app.models.schemas import InterviewQuestion, ResumeAnalysis
 
-# Fast + free-tier friendly (lite/8b models respond quicker than full flash)
-DEFAULT_MODEL = "gemini-2.0-flash-lite"
-FALLBACK_MODELS = (
-    "gemini-2.0-flash-lite",
-    "gemini-1.5-flash-8b",
+# Prefer fast models that work on free tier (2.0-flash-lite often quota=0)
+MODEL_PRIORITY = (
+    "gemini-2.5-flash-lite",
+    "gemini-flash-lite-latest",
+    "gemini-2.5-flash",
+    "gemini-flash-latest",
+    "gemini-3.1-flash-lite",
+    "gemini-3.1-flash-lite-preview",
+    "gemini-3.5-flash",
     "gemini-1.5-flash",
+    "gemini-2.0-flash-lite",
+    "gemini-2.0-flash",
 )
 
 RESUME_MAX_CHARS = 5000
@@ -31,16 +37,73 @@ CHAT_GENERATION_CONFIG = genai.GenerationConfig(
 
 CHAT_RESUME_EXCERPT = 2500
 
+_active_model: str | None = None
+_available_models: set[str] | None = None
+_quota_blocked: set[str] = set()
+
+
+def _normalize_model_name(name: str) -> str:
+    return name.removeprefix("models/")
+
+
+def list_generative_models() -> list[str]:
+    """Return model IDs that support generateContent for this API key."""
+    global _available_models
+    if _available_models is not None:
+        return sorted(_available_models)
+
+    settings = get_settings()
+    if not settings.gemini_api_key:
+        return []
+
+    genai.configure(api_key=settings.gemini_api_key)
+    names: set[str] = set()
+    for m in genai.list_models():
+        methods = getattr(m, "supported_generation_methods", []) or []
+        if "generateContent" in methods:
+            names.add(_normalize_model_name(m.name))
+
+    _available_models = names
+    return sorted(names)
+
+
+def get_active_model() -> str:
+    """Model used for the last successful (or next) request."""
+    if _active_model:
+        return _active_model
+    models = _models_to_try()
+    return models[0] if models else "gemini-2.5-flash-lite"
+
 
 def _models_to_try() -> list[str]:
+    global _active_model
     settings = get_settings()
-    primary = settings.gemini_model or DEFAULT_MODEL
-    seen = set()
-    ordered = []
-    for name in (primary, *FALLBACK_MODELS):
-        if name not in seen:
+    configured = (settings.gemini_model or "").strip().lower()
+
+    ordered: list[str] = []
+    seen: set[str] = set()
+
+    def add(name: str) -> None:
+        name = _normalize_model_name(name)
+        if name and name not in seen and name not in _quota_blocked:
             seen.add(name)
             ordered.append(name)
+
+    # Explicit model from .env (skip "auto")
+    if configured and configured not in ("auto", "automatic"):
+        add(settings.gemini_model)
+
+    if _active_model:
+        add(_active_model)
+
+    available = set(list_generative_models())
+    for name in MODEL_PRIORITY:
+        if not available or name in available:
+            add(name)
+
+    if not ordered:
+        add("gemini-2.5-flash-lite")
+
     return ordered
 
 
@@ -93,6 +156,19 @@ def _is_quota_error(err: Exception) -> bool:
     return "429" in msg or "quota" in msg or "rate" in msg
 
 
+def _mark_model_failed(model_name: str, err: Exception) -> None:
+    global _active_model
+    if _is_quota_error(err):
+        _quota_blocked.add(model_name)
+    if _active_model == model_name:
+        _active_model = None
+
+
+def _mark_model_success(model_name: str) -> None:
+    global _active_model
+    _active_model = model_name
+
+
 def _generate(prompt: str, *, generation_config: genai.GenerationConfig | None = None) -> str:
     last_err: Exception | None = None
     for model_name in _models_to_try():
@@ -103,16 +179,20 @@ def _generate(prompt: str, *, generation_config: genai.GenerationConfig | None =
                     prompt,
                     request_options={"timeout": 90},
                 )
+                _mark_model_success(model_name)
                 return response.text
             except Exception as e:
                 last_err = e
+                _mark_model_failed(model_name, e)
                 if _is_quota_error(e) and attempt == 0:
                     time.sleep(_retry_seconds(e))
                     continue
                 break
+
+    tried = ", ".join(_models_to_try()[:5])
     raise ValueError(
-        "Gemini API quota exceeded. Wait a minute and retry, or set "
-        f"GEMINI_MODEL={DEFAULT_MODEL} in .env / Streamlit Secrets. "
+        f"No working Gemini model (tried: {tried}). "
+        "Set GEMINI_MODEL=auto in .env or wait for quota reset. "
         f"Details: {last_err}"
     ) from last_err
 
@@ -213,15 +293,17 @@ def chat(
                     last_user,
                     request_options={"timeout": 60},
                 )
+                _mark_model_success(model_name)
                 return response.text or "I could not generate a response. Please try again."
             except Exception as e:
                 last_err = e
+                _mark_model_failed(model_name, e)
                 if _is_quota_error(e) and attempt == 0:
                     time.sleep(_retry_seconds(e))
                     continue
                 break
 
     raise ValueError(
-        "Chat unavailable (API quota). Wait a minute and retry. "
+        f"Chat unavailable (no working model). Active tried: {get_active_model()}. "
         f"Details: {last_err}"
     ) from last_err
